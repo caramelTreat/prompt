@@ -1,7 +1,7 @@
-// src/services/ai.js - 前端只调用 Vercel 后端接口（路径：/api/ai-copy）
+// src/services/ai.js - 纯前端调用后端接口，无任何OpenAI依赖
 export async function generateContent(prompt, onStreamUpdate) {
   try {
-    // 👉 注意：这里不再请求 aip.baidubce.com，而是请求 /api/ai-copy
+    // 只请求同域名的后端接口，绝对不直连百度
     const response = await fetch("/api/ai-copy", {
       method: "POST",
       headers: {
@@ -14,7 +14,6 @@ export async function generateContent(prompt, onStreamUpdate) {
       throw new Error(`请求失败：${response.status}`);
     }
 
-    // 处理后端流式返回的数据
     const reader = response.body.getReader();
     const decoder = new TextDecoder();
     let fullText = "";
@@ -28,9 +27,10 @@ export async function generateContent(prompt, onStreamUpdate) {
 
       for (const line of lines) {
         if (line.startsWith("data: ")) {
-          const data = JSON.parse(line.slice(6)); // 去掉 "data: " 前缀
+          const data = JSON.parse(line.replace("data: ", ""));
           fullText += data.content;
-          onStreamUpdate?.(fullText);
+          // 实时更新UI
+          if (onStreamUpdate) onStreamUpdate(fullText);
         }
       }
     }
@@ -39,7 +39,7 @@ export async function generateContent(prompt, onStreamUpdate) {
   } catch (error) {
     console.error("前端调用失败:", error);
     const errMsg = error.message || "生成失败，请稍后重试";
-    onStreamUpdate?.(`❌ ${errMsg}`);
+    if (onStreamUpdate) onStreamUpdate(`❌ ${errMsg}`);
     return `❌ ${errMsg}`;
   }
 }
