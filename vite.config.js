@@ -5,6 +5,7 @@ export default defineConfig({
   plugins: [vue()],
   // 核心：添加代理配置，解决跨域
   server: {
+    port: 1202, // 可选：指定开发服务器端口
     proxy: {
       // 匹配以 /api/baidu 开头的请求，转发到百度千帆
       "/api/baidu": {

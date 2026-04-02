@@ -7,7 +7,7 @@ export default async function handler(req, res) {
 
   try {
     const { prompt } = req.body;
-    const apiKey = process.env.VITE_BAIDU_API_KEY;
+    const apiKey = process.env.BAIDU_API_KEY;
 
     if (!prompt) return res.status(400).json({ error: "缺少描述内容" });
     if (!apiKey) return res.status(500).json({ error: "API Key 未配置" });
