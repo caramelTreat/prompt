@@ -1,46 +1,54 @@
-// src/services/ai.js - 前端调用 Vercel 后端接口
-export async function generateContent(prompt, onStreamUpdate) {
+// api/ai-copy.js - Vercel后端接口，彻底解决跨域
+import OpenAI from "openai";
+
+export default async function handler(req, res) {
+  if (req.method !== "POST") {
+    return res.status(405).json({ error: "Method not allowed" });
+  }
+
+  const apiKey = process.env.VITE_BAIDU_API_KEY;
+  if (!apiKey) {
+    return res.status(500).json({ error: "API Key not configured" });
+  }
+
+  const client = new OpenAI({
+    baseURL: "https://aip.baidubce.com/v2",
+    apiKey: apiKey,
+  });
+
+  const { prompt } = req.body;
+  if (!prompt) {
+    return res.status(400).json({ error: "Prompt is required" });
+  }
+
   try {
-    // 调用 Vercel 后端接口（路径和文件名对应：/api/ai-copy）
-    const response = await fetch("/api/ai-copy", {
-      method: "POST",
-      headers: {
-        "Content-Type": "application/json",
-      },
-      body: JSON.stringify({ prompt }),
+    const stream = await client.chat.completions.create({
+      model: "ernie-bot-turbo",
+      messages: [
+        {
+          role: "system",
+          content: "你是专业的AI文案写作助手，生成符合中文习惯的优质文案",
+        },
+        { role: "user", content: prompt },
+      ],
+      stream: true,
+      temperature: 0.7,
     });
 
-    if (!response.ok) {
-      throw new Error(`请求失败：${response.status}`);
-    }
+    res.setHeader("Content-Type", "text/event-stream");
+    res.setHeader("Cache-Control", "no-cache");
+    res.setHeader("Connection", "keep-alive");
 
-    // 处理流式响应
-    const reader = response.body.getReader();
-    const decoder = new TextDecoder();
-    let fullText = "";
-
-    while (true) {
-      const { done, value } = await reader.read();
-      if (done) break;
-
-      // 解析流式数据
-      const chunk = decoder.decode(value);
-      const lines = chunk.split("\n\n").filter((line) => line.trim());
-
-      for (const line of lines) {
-        if (line.startsWith("data: ")) {
-          const data = JSON.parse(line.replace("data: ", ""));
-          fullText += data.content;
-          onStreamUpdate?.(fullText); // 实时更新前端文案
-        }
+    for await (const chunk of stream) {
+      const content = chunk.choices[0]?.delta?.content || "";
+      if (content) {
+        res.write(`data: ${JSON.stringify({ content })}\n\n`);
       }
     }
 
-    return fullText;
+    res.end();
   } catch (error) {
-    console.error("前端调用失败:", error);
-    const errMsg = error.message || "生成失败，请稍后重试";
-    onStreamUpdate?.(`❌ ${errMsg}`);
-    return `❌ ${errMsg}`;
+    console.error("后端调用失败:", error);
+    res.status(500).json({ error: "生成失败，请稍后重试" });
   }
 }
