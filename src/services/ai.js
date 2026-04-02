@@ -10,12 +10,13 @@ const client = new OpenAI({
   baseURL: "https://aip.baidubce.com/v2/",
   // 直接填你的API Key
   apiKey: API_KEY,
+  dangerouslyAllowBrowser: true, // ✅ 新增这一行，解决报错
   // 超时配置，避免卡顿
   timeout: 30000,
 });
 
 // 核心文案生成函数（支持流式打字机效果，和原OpenAI逻辑完全一致）
-export async function generateCopywriter(prompt, onStreamUpdate) {
+export async function generateContent(prompt, onStreamUpdate) {
   try {
     // 调用免费模型ERNIE-Bot-turbo，个人实名用户每日免费500次
     const stream = await client.chat.completions.create({
