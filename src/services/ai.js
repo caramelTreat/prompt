@@ -1,45 +1,27 @@
-// src/services/ai.js - 纯前端调用后端接口，无任何OpenAI依赖
-export async function generateContent(prompt, onStreamUpdate) {
-  try {
-    // 只请求同域名的后端接口，绝对不直连百度
-    const response = await fetch("/api/ai-copy", {
-      method: "POST",
-      headers: {
-        "Content-Type": "application/json",
-      },
-      body: JSON.stringify({ prompt }),
-    });
+export async function generateContent(industry, description) {
+  const prompt = `
+你是专业的小红书爆款文案生成器。
+行业：${industry}
+产品/服务描述：${description}
 
-    if (!response.ok) {
-      throw new Error(`请求失败：${response.status}`);
-    }
+请严格按照以下JSON格式返回，不要其他内容：
+{
+  "titles": ["标题1","标题2","标题3","标题4","标题5","标题6","标题7","标题8","标题9","标题10"],
+  "content": "正文内容",
+  "comments": ["评论1","评论2","评论3"]
+}
+  `.trim();
 
-    const reader = response.body.getReader();
-    const decoder = new TextDecoder();
-    let fullText = "";
+  const res = await fetch("/api/ai-copy", {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ prompt }),
+  });
 
-    while (true) {
-      const { done, value } = await reader.read();
-      if (done) break;
-
-      const chunk = decoder.decode(value);
-      const lines = chunk.split("\n\n").filter((line) => line.trim());
-
-      for (const line of lines) {
-        if (line.startsWith("data: ")) {
-          const data = JSON.parse(line.replace("data: ", ""));
-          fullText += data.content;
-          // 实时更新UI
-          if (onStreamUpdate) onStreamUpdate(fullText);
-        }
-      }
-    }
-
-    return fullText;
-  } catch (error) {
-    console.error("前端调用失败:", error);
-    const errMsg = error.message || "生成失败，请稍后重试";
-    if (onStreamUpdate) onStreamUpdate(`❌ ${errMsg}`);
-    return `❌ ${errMsg}`;
+  if (!res.ok) {
+    const err = await res.json().catch(() => ({}));
+    throw new Error(err.error || "生成失败");
   }
+
+  return await res.json();
 }
