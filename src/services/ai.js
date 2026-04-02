@@ -1,76 +1,52 @@
-const API_KEY = 'YOUR_API_KEY_HERE'
-const API_URL = 'https://api.openai.com/v1/chat/completions'
-const MODEL = 'gpt-4o-mini'
+// 百度千帆v2 原生OpenAI兼容接口（仅需API Key，无需Secret Key）
+import OpenAI from "openai";
 
-const buildHeaders = () => ({
-  'Content-Type': 'application/json',
-  Authorization: `Bearer ${API_KEY}`,
-})
+// 👇 只需要填你刚创建的API Key！
+const API_KEY = import.meta.env.VITE_BAIDU_API_KEY;
 
-const parseJsonFromText = (text, fallback) => {
+// 初始化客户端，直接兼容OpenAI格式
+const client = new OpenAI({
+  // 百度千帆v2 OpenAI兼容地址
+  baseURL: "https://aip.baidubce.com/v2/",
+  // 直接填你的API Key
+  apiKey: API_KEY,
+  // 超时配置，避免卡顿
+  timeout: 30000,
+});
+
+// 核心文案生成函数（支持流式打字机效果，和原OpenAI逻辑完全一致）
+export async function generateCopywriter(prompt, onStreamUpdate) {
   try {
-    return JSON.parse(text)
-  } catch {
-    const matched = text.match(/\{[\s\S]*\}|\[[\s\S]*\]/)
-    if (!matched) {
-      return fallback
-    }
-
-    try {
-      return JSON.parse(matched[0])
-    } catch {
-      return fallback
-    }
-  }
-}
-
-const askModel = async (prompt) => {
-  const response = await fetch(API_URL, {
-    method: 'POST',
-    headers: buildHeaders(),
-    body: JSON.stringify({
-      model: MODEL,
-      temperature: 0.8,
+    // 调用免费模型ERNIE-Bot-turbo，个人实名用户每日免费500次
+    const stream = await client.chat.completions.create({
+      model: "ernie-bot-turbo",
       messages: [
         {
-          role: 'system',
+          role: "system",
           content:
-            '你是小红书爆款文案助手，请严格按用户要求返回 JSON，不要输出多余解释。',
+            "你是专业的AI文案写作助手，擅长生成高质量、符合需求的中文营销/社交/品牌文案，风格灵活适配。",
         },
-        { role: 'user', content: prompt },
+        { role: "user", content: prompt },
       ],
-    }),
-  })
+      temperature: 0.7,
+      stream: true, // 开启流式输出，实现打字机效果
+    });
 
-  if (!response.ok) {
-    const errorText = await response.text()
-    throw new Error(`API 请求失败: ${response.status} ${errorText}`)
-  }
+    let fullText = "";
+    // 流式处理，实时更新UI
+    for await (const chunk of stream) {
+      const content = chunk.choices[0]?.delta?.content || "";
+      fullText += content;
+      // 实时回调，更新页面显示
+      if (onStreamUpdate) onStreamUpdate(fullText);
+    }
 
-  const data = await response.json()
-  return data.choices?.[0]?.message?.content ?? ''
-}
-
-export const generateContent = async (industry, description) => {
-  const context = `行业：${industry}\n产品描述：${description || '未提供'}`
-
-  const titlePrompt = `${context}\n请生成10条小红书风格标题，返回 JSON 数组，格式：{"titles":["..."]}`
-  const contentPrompt = `${context}\n请生成1段小红书正文文案，返回 JSON 对象，格式：{"content":"..."}`
-  const commentPrompt = `${context}\n请生成3条评论区互动话术，返回 JSON 对象，格式：{"comments":["...","...","..."]}`
-
-  const [titlesRaw, contentRaw, commentsRaw] = await Promise.all([
-    askModel(titlePrompt),
-    askModel(contentPrompt),
-    askModel(commentPrompt),
-  ])
-
-  const titlesParsed = parseJsonFromText(titlesRaw, { titles: [] })
-  const contentParsed = parseJsonFromText(contentRaw, { content: '' })
-  const commentsParsed = parseJsonFromText(commentsRaw, { comments: [] })
-
-  return {
-    titles: Array.isArray(titlesParsed.titles) ? titlesParsed.titles.slice(0, 10) : [],
-    content: typeof contentParsed.content === 'string' ? contentParsed.content : '',
-    comments: Array.isArray(commentsParsed.comments) ? commentsParsed.comments.slice(0, 3) : [],
+    return fullText;
+  } catch (error) {
+    console.error("百度千帆API调用失败:", error);
+    const errorMsg =
+      error.response?.data?.error?.message || "服务异常，请稍后重试";
+    if (onStreamUpdate) onStreamUpdate(`❌ 生成失败：${errorMsg}`);
+    return `❌ 生成失败：${errorMsg}`;
   }
 }
