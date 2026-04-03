@@ -1,179 +1,153 @@
 <script setup>
-import { onMounted, ref } from "vue";
-import { generateContent } from "./services/ai";
+import { onMounted, ref } from "vue"
+import { generateContent } from "./services/ai"
 
-const industries = ["宠物", "美妆", "减肥", "副业", "情感"];
-const FREE_LIMIT = 3;
-const USAGE_STORAGE_KEY = "xhs_ai_generator_usage_count";
+const industries = ["Pet", "Beauty", "Fitness", "Side Hustle", "Relationship"]
+const FREE_LIMIT = 3
+const USAGE_STORAGE_KEY = "xhs_ai_generator_usage_count"
 
 const form = ref({
-  industry: "宠物",
+  industry: "Pet",
   description: "",
-});
+})
 
-const loading = ref(false);
-const error = ref("");
-const result = ref(null);
-const usageCount = ref(0);
-const showPaywall = ref(false);
+const loading = ref(false)
+const error = ref("")
+const result = ref(null)
+const usageCount = ref(0)
+const showPaywall = ref(false)
 
 const syncUsageFromStorage = () => {
-  const raw = localStorage.getItem(USAGE_STORAGE_KEY);
-  const parsed = Number.parseInt(raw || "0", 10);
-  usageCount.value = Number.isNaN(parsed) ? 0 : parsed;
-};
+  const raw = localStorage.getItem(USAGE_STORAGE_KEY)
+  const parsed = Number.parseInt(raw || "0", 10)
+  usageCount.value = Number.isNaN(parsed) ? 0 : parsed
+}
 
 const saveUsageToStorage = () => {
-  localStorage.setItem(USAGE_STORAGE_KEY, String(usageCount.value));
-};
+  localStorage.setItem(USAGE_STORAGE_KEY, String(usageCount.value))
+}
 
 const onUnlock = () => {
-  showPaywall.value = false;
-  window.alert("支付流程待接入，可在此跳转收银台页面。");
-};
+  showPaywall.value = false
+  window.alert("Payment flow is not connected yet. You can redirect to your checkout page here.")
+}
 
 const generateCopy = async () => {
-  error.value = "";
+  error.value = ""
 
   if (usageCount.value >= FREE_LIMIT) {
-    showPaywall.value = true;
-    return;
+    showPaywall.value = true
+    return
   }
 
-  usageCount.value += 1;
-  saveUsageToStorage();
-  loading.value = true;
+  usageCount.value += 1
+  saveUsageToStorage()
+  loading.value = true
 
   try {
-    const generated = await generateContent(
-      form.value.industry,
-      form.value.description,
-    );
-    result.value = generated;
+    result.value = await generateContent(form.value.industry, form.value.description)
   } catch (err) {
-    error.value = err instanceof Error ? err.message : "生成失败，请稍后重试。";
+    error.value = err instanceof Error ? err.message : "Generation failed. Please try again later."
   } finally {
-    loading.value = false;
+    loading.value = false
   }
-};
+}
 
 const copyText = async (text) => {
   try {
-    await navigator.clipboard.writeText(text);
+    await navigator.clipboard.writeText(text)
   } catch {
     // noop
   }
-};
+}
 
 const copyList = async (items) => {
-  await copyText(items.join("\n"));
-};
+  await copyText(items.join("\n"))
+}
 
 onMounted(() => {
-  syncUsageFromStorage();
-});
+  syncUsageFromStorage()
+})
 </script>
 
 <template>
   <main class="page">
     <section class="card">
-      <h1>3秒生成爆款小红书文案</h1>
-
-      <p class="quota-tip">
-        今日免费次数：{{ Math.max(FREE_LIMIT - usageCount, 0) }}/{{
-          FREE_LIMIT
-        }}
-      </p>
+      <h1>Xiaohongshu AI Copy Generator</h1>
+      <p class="quota-tip">Free tries today: {{ Math.max(FREE_LIMIT - usageCount, 0) }}/{{ FREE_LIMIT }}</p>
 
       <div class="field">
-        <label for="industry">行业</label>
+        <label for="industry">Industry</label>
         <select id="industry" v-model="form.industry">
-          <option v-for="item in industries" :key="item" :value="item">
-            {{ item }}
-          </option>
+          <option v-for="item in industries" :key="item" :value="item">{{ item }}</option>
         </select>
       </div>
 
       <div class="field">
-        <label for="desc">产品/服务描述</label>
+        <label for="desc">Product or service description</label>
         <textarea
           id="desc"
           v-model="form.description"
-          placeholder="请输入你的产品或服务描述"
-          rows="3"
+          placeholder="Describe your selling points, target users, and usage scenarios"
+          rows="4"
         />
       </div>
 
       <button class="generate-btn" :disabled="loading" @click="generateCopy">
-        {{ loading ? "生成中…" : "立即生成" }}
+        {{ loading ? "Generating..." : "Generate now" }}
       </button>
 
       <p v-if="error" class="error-msg">{{ error }}</p>
 
       <section v-if="loading" class="loading-box" aria-live="polite">
         <span class="loading-spinner" />
-        <p>正在为你生成爆款文案，请稍候…</p>
+        <p>Generating your Xiaohongshu copy, please wait...</p>
       </section>
 
       <section v-if="result && !loading" class="result-grid">
         <article class="result-block">
           <div class="result-head">
-            <h2>标题列表（10条）</h2>
-            <button class="copy-btn" @click="copyList(result.titles)">
-              复制全部
-            </button>
+            <h2>Titles (10)</h2>
+            <button class="copy-btn" @click="copyList(result.titles)">Copy all</button>
           </div>
           <ul>
-            <li v-for="(title, idx) in result.titles" :key="title">
+            <li v-for="(title, idx) in result.titles" :key="`${idx}-${title}`">
               <span>{{ idx + 1 }}. {{ title }}</span>
-              <button class="copy-btn" @click="copyText(title)">复制</button>
+              <button class="copy-btn" @click="copyText(title)">Copy</button>
             </li>
           </ul>
         </article>
 
         <article class="result-block">
           <div class="result-head">
-            <h2>文案内容</h2>
-            <button class="copy-btn" @click="copyText(result.content)">
-              复制文案
-            </button>
+            <h2>Main content</h2>
+            <button class="copy-btn" @click="copyText(result.content)">Copy content</button>
           </div>
           <p>{{ result.content }}</p>
         </article>
 
         <article class="result-block">
           <div class="result-head">
-            <h2>评论话术（3条）</h2>
-            <button class="copy-btn" @click="copyList(result.comments)">
-              复制全部
-            </button>
+            <h2>Comment ideas (3)</h2>
+            <button class="copy-btn" @click="copyList(result.comments)">Copy all</button>
           </div>
           <ul>
-            <li v-for="comment in result.comments" :key="comment">
+            <li v-for="(comment, idx) in result.comments" :key="`${idx}-${comment}`">
               <span>{{ comment }}</span>
-              <button class="copy-btn" @click="copyText(comment)">复制</button>
+              <button class="copy-btn" @click="copyText(comment)">Copy</button>
             </li>
           </ul>
         </article>
       </section>
     </section>
 
-    <div
-      v-if="showPaywall"
-      class="modal-mask"
-      @click.self="showPaywall = false"
-    >
-      <section
-        class="modal-card"
-        role="dialog"
-        aria-modal="true"
-        aria-label="免费次数提示"
-      >
-        <h3>今日免费次数已用完</h3>
-        <p>解锁无限生成，仅需9.9元</p>
+    <div v-if="showPaywall" class="modal-mask" @click.self="showPaywall = false">
+      <section class="modal-card" role="dialog" aria-modal="true" aria-label="Usage limit reminder">
+        <h3>No free tries left today</h3>
+        <p>Unlock unlimited generations for CNY 9.9.</p>
         <div class="modal-actions">
-          <button class="unlock-btn" @click="onUnlock">立即解锁</button>
-          <button class="cancel-btn" @click="showPaywall = false">取消</button>
+          <button class="unlock-btn" @click="onUnlock">Unlock now</button>
+          <button class="cancel-btn" @click="showPaywall = false">Cancel</button>
         </div>
       </section>
     </div>

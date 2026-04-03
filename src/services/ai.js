@@ -1,27 +1,33 @@
-export async function generateContent(industry, description) {
-  const prompt = `
-你是专业的小红书爆款文案生成器。
-行业：${industry}
-产品/服务描述：${description}
+const buildPrompt = (industry, description) => `
+You are a professional Xiaohongshu copywriting assistant.
+Please generate all content in Simplified Chinese.
 
-请严格按照以下JSON格式返回，不要其他内容：
+Industry: ${industry}
+Product or service description: ${description || "Not provided"}
+
+Return JSON only. Do not include any extra explanation.
 {
-  "titles": ["标题1","标题2","标题3","标题4","标题5","标题6","标题7","标题8","标题9","标题10"],
-  "content": "正文内容",
-  "comments": ["评论1","评论2","评论3"]
+  "titles": ["title1", "title2", "title3", "title4", "title5", "title6", "title7", "title8", "title9", "title10"],
+  "content": "main content",
+  "comments": ["comment1", "comment2", "comment3"]
 }
-  `.trim();
+`.trim()
 
-  const res = await fetch("/api/ai-copy", {
+export async function generateContent(industry, description) {
+  const response = await fetch("/api/ai-copy", {
     method: "POST",
-    headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({ prompt }),
-  });
+    headers: {
+      "Content-Type": "application/json",
+    },
+    body: JSON.stringify({
+      prompt: buildPrompt(industry, description),
+    }),
+  })
 
-  if (!res.ok) {
-    const err = await res.json().catch(() => ({}));
-    throw new Error(err.error || "生成失败");
+  if (!response.ok) {
+    const payload = await response.json().catch(() => ({}))
+    throw new Error(payload.error || payload.detail || "Generation failed. Please try again later.")
   }
 
-  return await res.json();
+  return response.json()
 }

@@ -1,23 +1,52 @@
-import { defineConfig } from "vite";
-import vue from "@vitejs/plugin-vue"; // 如果你用 Vue，其他框架同理
+import { defineConfig } from "vite"
+import vue from "@vitejs/plugin-vue"
+import { generateCopy } from "./api/ai-copy.js"
+
+function qianfanDevApiPlugin() {
+  return {
+    name: "qianfan-dev-api",
+    configureServer(server) {
+      server.middlewares.use(async (req, res, next) => {
+        if (req.url !== "/api/ai-copy") {
+          return next()
+        }
+
+        if (req.method !== "POST") {
+          res.statusCode = 405
+          res.setHeader("Content-Type", "application/json; charset=utf-8")
+          res.end(JSON.stringify({ error: "Method not allowed" }))
+          return
+        }
+
+        try {
+          const chunks = []
+
+          for await (const chunk of req) {
+            chunks.push(chunk)
+          }
+
+          const rawBody = Buffer.concat(chunks).toString("utf8")
+          const body = rawBody ? JSON.parse(rawBody) : {}
+          const data = await generateCopy(body)
+
+          res.statusCode = 200
+          res.setHeader("Content-Type", "application/json; charset=utf-8")
+          res.end(JSON.stringify(data))
+        } catch (error) {
+          res.statusCode = error.statusCode || 500
+          res.setHeader("Content-Type", "application/json; charset=utf-8")
+          res.end(
+            JSON.stringify({
+              error: "AI 生成失败",
+              detail: error.message || "未知错误",
+            }),
+          )
+        }
+      })
+    },
+  }
+}
 
 export default defineConfig({
-  plugins: [vue()],
-  // 核心：添加代理配置，解决跨域
-  server: {
-    port: 1202, // 可选：指定开发服务器端口
-    proxy: {
-      // 匹配以 /api/baidu 开头的请求，转发到百度千帆
-      "/api/baidu": {
-        target: "https://aip.baidubce.com/v2",
-        changeOrigin: true, // 关键：模拟跨域请求的 Origin
-        rewrite: (path) => path.replace(/^\/api\/baidu/, ""), // 去掉前缀
-        secure: false, // 可选：解决HTTPS证书问题
-        headers: {
-          Referer: "http://localhost:5174", // 可选：添加Referer，避免接口拦截
-          Origin: "http://localhost:5174",
-        },
-      },
-    },
-  },
-});
+  plugins: [vue(), qianfanDevApiPlugin()],
+})
